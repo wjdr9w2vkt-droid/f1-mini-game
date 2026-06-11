@@ -10,5 +10,6 @@
 3. 操作说明：↑↓←→ 控制赛车...
 
 ## 预览
-[Uploading 屏幕截图 2026-06-11 152938.png…]
+<img width="619" height="695" alt="屏幕截图 2026-06-11 152938" src="https://github.com/user-attachments/assets/90d52117-cd0d-4a86-89ad-1e89b04bc69e" />
+
 
