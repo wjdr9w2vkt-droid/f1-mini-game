@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F1 车手二选一 · Who's Your Driver?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --surface: #141418;
+    --text: #e8e8ec;
+    --muted: #6b6b78;
+    --accent: #e10600;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{
+    width:100%;min-height:100vh;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter','Noto Sans SC',sans-serif;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ========== 背景动态粒子 ========== */
+  canvas#particles{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.35}
+
+  /* ========== 主容器 ========== */
+  #app{
+    position:relative;z-index:1;
+    max-width:1100px;margin:0 auto;
+    padding:4vh 4vw;min-height:100vh;
+    display:flex;flex-direction:column;align-items:center;
+  }
+
+  /* ========== 顶部栏 ========== */
+  .header{text-align:center;margin-bottom:3vh}
+  .header .title{
+    font-size:clamp(28px,4.5vw,52px);font-weight:900;
+    letter-spacing:-.02em;line-height:1.1;
+  }
+  .header .title .red{color:var(--accent)}
+  .header .sub{
+    font-size:clamp(13px,1.4vw,16px);color:var(--muted);
+    margin-top:1vh;letter-spacing:.04em;
+  }
+
+  /* ========== 进度条 ========== */
+  .progress-wrap{width:100%;max-width:640px;margin-bottom:4vh}
+  .progress-label{
+    display:flex;justify-content:space-between;
+    font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:8px;
+  }
+  .progress-bar{
+    width:100%;height:3px;background:rgba(255,255,255,.08);
+    border-radius:99px;overflow:hidden;
+  }
+  .progress-fill{
+    height:100%;background:var(--accent);
+    border-radius:99px;transition:width .5s ease;
+  }
+
+  /* ========== 对决区 ========== */
+  .arena{
+    display:flex;align-items:center;justify-content:center;
+    gap:clamp(12px,3vw,32px);width:100%;max-width:960px;
+    margin-bottom:5vh;
+  }
+  .card-wrap{
+    flex:1;max-width:380px;
+    perspective:1200px; /* 3D 翻转用 */
+  }
+  .card{
+    position:relative;
+    aspect-ratio:4/5;
+    border-radius:16px;
+    cursor:pointer;
+    overflow:hidden;
+    transition:transform .25s ease,box-shadow .25s ease;
+    transform-style:preserve-3d;
+  }
+  .card:hover{transform:scale(1.025);box-shadow:0 0 40px rgba(225,6,0,.15)}
+  .card:active{transform:scale(0.985)}
+
+  /* 卡片正面的滚动层 */
+  .card-face{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;
+    transition:transform .55s cubic-bezier(.22,1,.36,1),
+               opacity .45s ease;
+  }
+  .card-face.rolling-out{transform:translateY(-105%);opacity:0}
+  .card-face.rolling-in{transform:translateY(0);opacity:1}
+  .card-face.prepare-in{transform:translateY(105%);opacity:0}
+
+  /* ========== 卡片内部 ========== */
+  .card-bg{
+    position:absolute;inset:0;
+    transition:background .5s ease;
+    z-index:0;
+  }
+  .card-gradient{
+    position:absolute;inset:0;
+    background:linear-gradient(180deg,
+      rgba(0,0,0,0) 40%,
+      rgba(0,0,0,.45) 75%,
+      rgba(0,0,0,.85) 100%);
+    z-index:1;
+  }
+  .card-content{
+    position:relative;z-index:2;
+    flex:1;display:flex;flex-direction:column;
+    justify-content:flex-end;
+    padding:clamp(16px,2.8vh,28px) clamp(14px,2.4vw,24px);
+  }
+
+  /* 头像区 */
+  .avatar-slot{
+    position:absolute;top:12%;left:50%;transform:translateX(-50%);
+    width:52%;aspect-ratio:1/1;
+    border-radius:50%;
+    border:3px solid rgba(255,255,255,.25);
+    overflow:hidden;
+    z-index:2;
+    background:rgba(0,0,0,.25);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 8px 32px rgba(0,0,0,.35);
+  }
+  .avatar-slot img{
+    width:100%;height:100%;object-fit:cover;object-position:top center;
+  }
+  .avatar-slot .placeholder-initials{
+    font-size:clamp(28px,5vw,56px);font-weight:900;
+    letter-spacing:-.02em;opacity:.7;
+    text-shadow:0 2px 8px rgba(0,0,0,.4);
+  }
+
+  /* 车手信息 */
+  .driver-number{
+    font-size:clamp(48px,8vw,88px);font-weight:900;
+    line-height:.85;letter-spacing:-.04em;
+    opacity:.18;margin-bottom:.4vh;
+  }
+  .driver-name{
+    font-size:clamp(22px,3.2vw,34px);font-weight:800;
+    letter-spacing:-.02em;line-height:1.1;
+    margin-bottom:.6vh;
+  }
+  .driver-team{
+    font-size:clamp(13px,1.5vw,16px);font-weight:500;
+    opacity:.75;letter-spacing:.02em;
+    margin-bottom:1.6vh;
+  }
+  .driver-stats{
+    display:flex;gap:2vw;
+    font-size:clamp(11px,1.1vw,13px);
+    opacity:.55;letter-spacing:.04em;
+  }
+  .driver-stats span{display:flex;align-items:center;gap:6px}
+
+  /* ========== VS 徽章 ========== */
+  .vs-badge{
+    flex-shrink:0;
+    width:clamp(48px,6vw,68px);height:clamp(48px,6vw,68px);
+    border-radius:50%;
+    background:rgba(255,255,255,.06);
+    border:2px solid rgba(255,255,255,.12);
+    display:flex;align-items:center;justify-content:center;
+    font-size:clamp(16px,2.4vw,26px);font-weight:900;
+    letter-spacing:-.02em;opacity:.8;
+    backdrop-filter:blur(8px);
+  }
+
+  /* ========== 最近选择记录 ========== */
+  .history{
+    display:flex;gap:10px;flex-wrap:wrap;justify-content:center;
+    max-width:640px;margin-bottom:3vh;
+  }
+  .history-item{
+    width:clamp(36px,4.8vw,48px);height:clamp(36px,4.8vw,48px);
+    border-radius:50%;overflow:hidden;
+    border:2px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.04);
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;
+    transition:transform .25s ease,border-color .25s ease;
+    animation:popIn .4s cubic-bezier(.22,1,.36,1);
+  }
+  .history-item img{
+    width:100%;height:100%;object-fit:cover;object-position:top center;
+  }
+  .history-item.latest{border-color:var(--accent);box-shadow:0 0 16px rgba(225,6,0,.25)}
+  @keyframes popIn{
+    0%{transform:scale(.3);opacity:0}
+    70%{transform:scale(1.15)}
+    100%{transform:scale(1);opacity:1}
+  }
+
+  /* ========== 胜利画面 ========== */
+  .win-overlay{
+    position:fixed;inset:0;z-index:50;
+    background:rgba(0,0,0,.88);backdrop-filter:blur(16px);
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .6s ease;
+  }
+  .win-overlay.show{opacity:1;pointer-events:auto}
+  .win-content{text-align:center;padding:4vh 4vw}
+  .win-crown{font-size:clamp(56px,10vw,96px);margin-bottom:2vh}
+  .win-label{
+    font-size:14px;letter-spacing:.24em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:1vh;
+  }
+  .win-name{
+    font-size:clamp(36px,7vw,72px);font-weight:900;
+    letter-spacing:-.02em;margin-bottom:1vh;
+  }
+  .win-team{
+    font-size:clamp(16px,2vw,22px);opacity:.7;margin-bottom:3vh;
+  }
+  .win-btn{
+    padding:14px 40px;border-radius:99px;
+    background:var(--accent);color:#fff;
+    border:0;font-size:16px;font-weight:700;
+    cursor:pointer;letter-spacing:.04em;
+    transition:transform .2s ease,box-shadow .2s ease;
+  }
+  .win-btn:hover{transform:scale(1.05);box-shadow:0 0 32px rgba(225,6,0,.35)}
+
+  /* ========== 操作提示 ========== */
+  .hint{
+    position:fixed;bottom:3vh;left:50%;transform:translateX(-50%);
+    z-index:10;font-size:12px;letter-spacing:.12em;
+    color:var(--muted);text-align:center;
+  }
+
+  /* 响应式 */
+  @media(max-width:640px){
+    .arena{flex-direction:column;gap:16px}
+    .card-wrap{max-width:320px;width:100%}
+    .vs-badge{order:-1;width:40px;height:40px;font-size:16px}
+    .card{aspect-ratio:4/4.5}
+    .avatar-slot{width:45%;top:10%}
+  }
+</style>
+</head>
+<body>
+<canvas id="particles"></canvas>
+
+<div id="app">
+  <div class="header">
+    <div class="title">F1 <span class="red">二选一</span></div>
+    <div class="sub">Who's Your Driver? · 22 位现役车手淘汰对决</div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-label">
+      <span id="round-label">第 1 轮</span>
+      <span id="pool-label">剩余 22 人</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  </div>
+
+  <div class="arena" id="arena">
+    <!-- 左侧卡片 -->
+    <div class="card-wrap" id="wrap-left">
+      <div class="card" id="card-left" onclick="pick('left')">
+        <div class="card-face" id="face-left"></div>
+      </div>
+    </div>
+
+    <!-- VS 徽章 -->
+    <div class="vs-badge">VS</div>
+
+    <!-- 右侧卡片 -->
+    <div class="card-wrap" id="wrap-right">
+      <div class="card" id="card-right" onclick="pick('right')">
+        <div class="card-face" id="face-right"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 最近选择 -->
+  <div class="history" id="history-track"></div>
+
+  <div class="hint">点击你更喜欢的车手 · Click your favorite driver</div>
+</div>
+
+<!-- 胜利画面 -->
+<div class="win-overlay" id="win-overlay">
+  <div class="win-content">
+    <div class="win-crown">🏆</div>
+    <div class="win-label">Your F1 Champion</div>
+    <div class="win-name" id="win-name"></div>
+    <div class="win-team" id="win-team"></div>
+    <button class="win-btn" onclick="restartGame()">再来一局 · Play Again</button>
+  </div>
+</div>
+
+<script>
+// ============================
+// 2026 F1 车手数据 (22人)
+// ============================
+const DRIVERS = [
+  { id:'norris',      name:'Lando Norris',     nameZh:'诺里斯',   team:'McLaren',           num:4,   color:'#ff8000', accent:'#000000' },
+  { id:'piastri',     name:'Oscar Piastri',    nameZh:'皮亚斯特里',team:'McLaren',          num:81,  color:'#ff8000', accent:'#000000' },
+  { id:'antonelli',   name:'Kimi Antonelli',   nameZh:'安东内利', team:'Mercedes',          num:12,  color:'#00d2be', accent:'#000000' },
+  { id:'russell',     name:'George Russell',   nameZh:'拉塞尔',   team:'Mercedes',          num:63,  color:'#00d2be', accent:'#000000' },
+  { id:'verstappen',  name:'Max Verstappen',   nameZh:'维斯塔潘', team:'Red Bull Racing',   num:1,   color:'#1e3a5f', accent:'#ffcc00' },
+  { id:'hadjar',      name:'Isack Hadjar',     nameZh:'哈贾尔',   team:'Red Bull Racing',   num:6,   color:'#1e3a5f', accent:'#ffcc00' },
+  { id:'leclerc',     name:'Charles Leclerc',  nameZh:'勒克莱尔', team:'Ferrari',           num:16,  color:'#dc0000', accent:'#fff200' },
+  { id:'hamilton',    name:'Lewis Hamilton',   nameZh:'汉密尔顿', team:'Ferrari',           num:44,  color:'#dc0000', accent:'#fff200' },
+  { id:'lawson',      name:'Liam Lawson',      nameZh:'劳森',     team:'Racing Bulls',      num:30,  color:'#4169e1', accent:'#ffffff' },
+  { id:'lindblad',    name:'Arvid Lindblad',   nameZh:'林德布拉德',team:'Racing Bulls',     num:36,  color:'#4169e1', accent:'#ffffff' },
+  { id:'gasly',       name:'Pierre Gasly',     nameZh:'加斯利',   team:'Alpine',            num:10,  color:'#0057b7', accent:'#ff3399' },
+  { id:'colapinto',   name:'Franco Colapinto', nameZh:'科拉平托', team:'Alpine',            num:43,  color:'#0057b7', accent:'#ff3399' },
+  { id:'ocon',        name:'Esteban Ocon',     nameZh:'奥康',     team:'Haas F1',           num:31,  color:'#ffffff', accent:'#e6002d' },
+  { id:'bearman',     name:'Oliver Bearman',   nameZh:'比尔曼',   team:'Haas F1',           num:87,  color:'#ffffff', accent:'#e6002d' },
+  { id:'alonso',      name:'Fernando Alonso',  nameZh:'阿隆索',   team:'Aston Martin',      num:14,  color:'#00665e', accent:'#cedc00' },
+  { id:'stroll',      name:'Lance Stroll',     nameZh:'斯特罗尔', team:'Aston Martin',      num:18,  color:'#00665e', accent:'#cedc00' },
+  { id:'perez',       name:'Sergio Pérez',     nameZh:'佩雷斯',   team:'Cadillac',          num:11,  color:'#b8860b', accent:'#000000' },
+  { id:'bottas',      name:'Valtteri Bottas',  nameZh:'博塔斯',   team:'Cadillac',          num:77,  color:'#b8860b', accent:'#000000' },
+  { id:'albon',       name:'Alexander Albon',  nameZh:'阿尔本',   team:'Williams',          num:23,  color:'#00327d', accent:'#00a0de' },
+  { id:'sainz',       name:'Carlos Sainz',     nameZh:'赛恩斯',   team:'Williams',          num:55,  color:'#00327d', accent:'#00a0de' },
+  { id:'bortoleto',   name:'Gabriel Bortoleto',nameZh:'博托莱托', team:'Audi',             num:5,   color:'#1a1a1a', accent:'#c0ff00' },
+  { id:'hulkenberg',  name:'Nico Hülkenberg',  nameZh:'霍肯伯格', team:'Audi',             num:27,  color:'#1a1a1a', accent:'#c0ff00' },
+];
+
+// ============================
+// 游戏状态
+// ============================
+let pool = [];              // 尚未出场的车手
+let currentPair = [];       // [leftDriver, rightDriver]
+let pickHistory = [];       // 每轮被选中的车手
+let round = 0;
+let animating = false;
+
+// ============================
+// Fisher-Yates 洗牌
+// ============================
+function shuffle(arr){
+  const a = [...arr];
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+// ============================
+// 初始化 / 重启
+// ============================
+function initGame(){
+  pool = shuffle([...DRIVERS]);
+  // 前两位出列构成第一轮
+  const d1 = pool.pop();
+  const d2 = pool.pop();
+  currentPair = [d1, d2];
+  pickHistory = [];
+  round = 1;
+  animating = false;
+  document.getElementById('win-overlay').classList.remove('show');
+  updateProgress();
+  renderCards(true);
+  renderHistory();
+}
+
+// ============================
+// 渲染左右卡片
+// ============================
+function renderCards(instant){
+  renderCard('left',  currentPair[0], instant);
+  renderCard('right', currentPair[1], instant);
+}
+
+function renderCard(side, driver, instant){
+  const face = document.getElementById('face-'+side);
+  const card = document.getElementById('card-'+side);
+  const wrap = document.getElementById('wrap-'+side);
+
+  // 空状态（不应该发生）
+  if(!driver){
+    face.innerHTML = '';
+    card.style.boxShadow = 'none';
+    return;
+  }
+
+  const html = `
+    <div class="card-bg" style="background:linear-gradient(155deg,
+      ${driver.color} 0%,
+      ${driver.color}dd 50%,
+      ${driver.accent}33 100%)"></div>
+    <div class="card-gradient"></div>
+
+    <div class="avatar-slot">
+      <img src="images/drivers/${driver.id}.jpg"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+           style="width:100%;height:100%;object-fit:cover;object-position:top center"
+           alt="${driver.name}">
+      <div class="placeholder-initials" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;color:${driver.accent}">
+        ${driver.name.split(' ').pop().charAt(0)}${driver.nameZh.charAt(0)}
+      </div>
+    </div>
+
+    <div class="card-content">
+      <div class="driver-number">#${driver.num}</div>
+      <div class="driver-name">${driver.nameZh}</div>
+      <div class="driver-team">${driver.name} · ${driver.team}</div>
+      <div class="driver-stats">
+        <span>🏎 ${driver.team}</span>
+        <span>🔢 No.${driver.num}</span>
+      </div>
+    </div>
+  `;
+
+  if(instant){
+    face.innerHTML = html;
+    face.style.transition = 'none';
+    face.style.transform = 'translateY(0)';
+    face.style.opacity = '1';
+    wrap.style.pointerEvents = 'auto';
+    card.style.boxShadow = '';
+    // 强制回流后恢复 transition
+    face.offsetHeight;
+    face.style.transition = 'transform .55s cubic-bezier(.22,1,.36,1), opacity .45s ease';
+  } else {
+    // 滚动入场动画
+    face.style.transition = 'none';
+    face.style.transform = 'translateY(105%)';
+    face.style.opacity = '0';
+    face.innerHTML = html;
+    face.offsetHeight; // 强制回流
+    face.style.transition = 'transform .55s cubic-bezier(.22,1,.36,1), opacity .45s ease';
+    requestAnimationFrame(()=>{
+      face.style.transform = 'translateY(0)';
+      face.style.opacity = '1';
+    });
+  }
+}
+
+// ============================
+// 滚动替换动画
+// ============================
+function animateReplace(loserSide, winnerSide, newDriver, callback){
+  const loserFace = document.getElementById('face-'+loserSide);
+  const loserCard = document.getElementById('card-'+loserSide);
+  const loserWrap = document.getElementById('wrap-'+loserSide);
+  const winnerCard = document.getElementById('card-'+winnerSide);
+
+  // 禁用点击
+  loserWrap.style.pointerEvents = 'none';
+  document.getElementById('wrap-'+winnerSide).style.pointerEvents = 'none';
+
+  // 胜者卡片发光
+  winnerCard.style.boxShadow = '0 0 48px rgba(225,6,0,.3)';
+
+  // 败者滚出（向上）
+  loserFace.style.transition = 'transform .42s cubic-bezier(.55,0,.8,.45), opacity .35s ease';
+  loserFace.style.transform = 'translateY(-105%)';
+  loserFace.style.opacity = '0';
+
+  // 等败者滚出后，换内容再滚入
+  setTimeout(()=>{
+    // 换内容
+    const driver = newDriver;
+    const html = `
+      <div class="card-bg" style="background:linear-gradient(155deg,
+        ${driver.color} 0%,
+        ${driver.color}dd 50%,
+        ${driver.accent}33 100%)"></div>
+      <div class="card-gradient"></div>
+
+      <div class="avatar-slot">
+        <img src="images/drivers/${driver.id}.jpg"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+             style="width:100%;height:100%;object-fit:cover;object-position:top center"
+             alt="${driver.name}">
+        <div class="placeholder-initials" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;color:${driver.accent}">
+          ${driver.name.split(' ').pop().charAt(0)}${driver.nameZh.charAt(0)}
+        </div>
+      </div>
+
+      <div class="card-content">
+        <div class="driver-number">#${driver.num}</div>
+        <div class="driver-name">${driver.nameZh}</div>
+        <div class="driver-team">${driver.name} · ${driver.team}</div>
+        <div class="driver-stats">
+          <span>🏎 ${driver.team}</span>
+          <span>🔢 No.${driver.num}</span>
+        </div>
+      </div>
+    `;
+    loserFace.innerHTML = html;
+    loserFace.style.transition = 'none';
+    loserFace.style.transform = 'translateY(105%)';
+    loserFace.style.opacity = '0';
+    loserFace.offsetHeight;
+
+    // 新内容滚入
+    requestAnimationFrame(()=>{
+      loserFace.style.transition = 'transform .55s cubic-bezier(.22,1,.36,1), opacity .45s ease';
+      loserFace.style.transform = 'translateY(0)';
+      loserFace.style.opacity = '1';
+    });
+
+    // 动画完成后
+    setTimeout(()=>{
+      loserCard.style.boxShadow = '';
+      winnerCard.style.boxShadow = '';
+      loserWrap.style.pointerEvents = 'auto';
+      document.getElementById('wrap-'+winnerSide).style.pointerEvents = 'auto';
+      if(callback) callback();
+    }, 580);
+  }, 440);
+}
+
+// ============================
+// 玩家选择
+// ============================
+function pick(side){
+  if(animating) return;
+  animating = true;
+
+  const winnerIdx = side==='left' ? 0 : 1;
+  const loserIdx  = side==='left' ? 1 : 0;
+  const loserSide = side==='left' ? 'right' : 'left';
+  const winnerSide = side;
+
+  const winner = currentPair[winnerIdx];
+  pickHistory.push(winner);
+  round++;
+
+  // 池子空了 → 游戏结束
+  if(pool.length === 0){
+    updateProgress();
+    renderHistory();
+    // 最后一轮动画
+    const loserFace = document.getElementById('face-'+loserSide);
+    loserFace.style.transition = 'transform .42s cubic-bezier(.55,0,.8,.45), opacity .35s ease';
+    loserFace.style.transform = 'translateY(-105%)';
+    loserFace.style.opacity = '0';
+    setTimeout(()=>showWinScreen(winner), 500);
+    return;
+  }
+
+  // 从池子抽新车手
+  const newDriver = pool.pop();
+  // 更新 currentPair
+  const newPair = [...currentPair];
+  newPair[loserIdx] = newDriver;
+  currentPair = newPair;
+
+  updateProgress();
+  renderHistory();
+
+  // 执行替换动画
+  animateReplace(loserSide, winnerSide, newDriver, ()=>{
+    animating = false;
+  });
+}
+
+// ============================
+// 进度条
+// ============================
+function updateProgress(){
+  const remaining = pool.length;
+  const total = DRIVERS.length;
+  const eliminated = total - remaining - 2; // 当前场上2人未计入
+
+  document.getElementById('round-label').textContent = `第 ${round} 轮`;
+  document.getElementById('pool-label').textContent = `剩余 ${remaining+2} 人`;
+  document.getElementById('progress-fill').style.width =
+    Math.min(100, Math.round((round-1)/(total-1)*100)) + '%';
+}
+
+// ============================
+// 历史记录
+// ============================
+function renderHistory(){
+  const container = document.getElementById('history-track');
+  const recent = pickHistory.slice(-11); // 最多显示11个
+  container.innerHTML = recent.map((d,i)=>{
+    const isLatest = i === recent.length-1;
+    return `<div class="history-item${isLatest?' latest':''}"
+      style="background:${d.color};color:${d.accent};font-size:14px;font-weight:900"
+      title="${d.nameZh} · ${d.team}">
+      <img src="images/drivers/${d.id}.jpg"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+           style="width:100%;height:100%;object-fit:cover;object-position:top center"
+           alt="${d.name}">
+      <span style="display:none">${d.nameZh.charAt(0)}</span>
+    </div>`;
+  }).join('');
+}
+
+// ============================
+// 胜利画面
+// ============================
+function showWinScreen(driver){
+  document.getElementById('win-name').textContent = driver.nameZh;
+  document.getElementById('win-team').textContent = driver.name + ' · ' + driver.team;
+  document.getElementById('win-overlay').classList.add('show');
+}
+
+function restartGame(){
+  initGame();
+}
+
+// ============================
+// 背景粒子动画
+// ============================
+(function(){
+  const canvas = document.getElementById('particles');
+  const ctx = canvas.getContext('2d');
+  let w,h;
+  const dots = [];
+
+  function resize(){
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+
+  // 初始化粒子
+  for(let i=0;i<60;i++){
+    dots.push({
+      x:Math.random()*w, y:Math.random()*h,
+      vx:(Math.random()-.5)*.4, vy:(Math.random()-.5)*.4,
+      r:Math.random()*1.4+.3,
+      alpha:Math.random()*.4+.1
+    });
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    dots.forEach(d=>{
+      d.x+=d.vx;d.y+=d.vy;
+      if(d.x<0)d.x=w;if(d.x>w)d.x=0;
+      if(d.y<0)d.y=h;if(d.y>h)d.y=0;
+      ctx.beginPath();
+      ctx.arc(d.x,d.y,d.r,0,Math.PI*2);
+      ctx.fillStyle = `rgba(225,6,0,${d.alpha})`;
+      ctx.fill();
+    });
+
+    // 连线
+    dots.forEach((a,i)=>{
+      dots.slice(i+1).forEach(b=>{
+        const dx=a.x-b.x,dy=a.y-b.y,dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<120){
+          ctx.beginPath();
+          ctx.moveTo(a.x,a.y);
+          ctx.lineTo(b.x,b.y);
+          ctx.strokeStyle = `rgba(225,6,0,${.04*(1-dist/120)})`;
+          ctx.lineWidth = .5;
+          ctx.stroke();
+        }
+      });
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ============================
+// 键盘操作
+// ============================
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft') pick('left');
+  if(e.key==='ArrowRight') pick('right');
+  if(e.key==='r' && e.ctrlKey){e.preventDefault();restartGame();}
+});
+
+// ============================
+// 启动！
+// ============================
+initGame();
+</script>
+</body>
+</html>
