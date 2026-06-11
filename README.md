@@ -1,4 +1,4 @@
-<img width="619" height="695" alt="image" src="https://github.com/user-attachments/assets/be01d566-4e48-494c-a298-1883d474dfee" /># f1-mini-game
+# f1-mini-game
 F1主题简易休闲小游戏
 # F1 迷你小游戏
 自制 F1 主题休闲小游戏
